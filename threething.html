@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html>
+	<title>three</title>
+	<style>
+		body { margin: 0; }
+		canvas {width: 100%; height: 100%}
+	</style>
+	<body>
+
+	<script src="js/three.js"></script>
+	<script src="js/Detector.js"></script>
+	<script>
+	if (Detector.webgl) {
+		var scene = new THREE.Scene();
+
+		var camera = new THREE.PerspectiveCamera( 75, window.innerWidth/window.innerHeight, 0.1, 1000 );
+		var renderer = new THREE.WebGLRenderer();
+		renderer.setSize( window.innerWidth, window.innerHeight );
+		renderer.localClippingEnabled=true;
+		document.body.appendChild( renderer.domElement );
+		
+		//LIGHT SOURCE
+		var light=new THREE.PointLight(0x96A969);
+		light.position.set(0,100,10);
+		light.castShadow=true;
+		light.shadow.camera.near=4;
+		light.shadow.camera.far=15;
+		light.shadow.mapSize.width=1024;
+		light.shadow.mapSize.height=1024;
+		
+		// GEOMETRY SETUP
+		//set up skybox
+		var sky=new THREE.BoxGeometry(1000,1000,1000);
+		var skymat={color: 0xffffff,side: THREE.DoubleSide};
+		var skymaterial=new THREE.MeshBasicMaterial(skymat);
+		var skybox=new THREE.Mesh(sky,skymaterial);
+
+		//set up the table
+		var table = new THREE.PlaneGeometry(100,100,1,1);
+		//material for table
+		var tabletexture=new THREE.ImageUtils.loadTexture('pics/Walnut.jpg'); //import texture from jpg
+		var tablematerial=new THREE.MeshPhongMaterial({ map:tabletexture,side: THREE.DoubleSide,shininess: 50});
+		var table_mesh=new THREE.Mesh(table,tablematerial);
+
+		//for the cup
+		var pts=[],clip_pts=[];
+		pts.push(new THREE.Vector2(0,0));
+		var i;
+		for(i=3;i<5;i+=0.05){
+			var vek=new THREE.Vector2( i,Math.pow(1.6,i)-Math.pow(1.6,3));
+			pts.push(vek);
+			clip_pts.push(vek);
+		}
+		var cont_cond_cup=Math.pow(1.6,3);
+		for(i=5-0.05;i>=3;i-=0.05){
+			pts.push(new THREE.Vector2(i+0.5,Math.pow(1.6,i)-cont_cond_cup-0.5));
+		}
+		pts.push(new THREE.Vector2(0,-0.5));
+		var geo2=new THREE.LatheGeometry(pts,48);
+		
+		//for the handle
+		//cross section to be extruded
+		var hand_shape=new THREE.Shape();
+		hand_shape.absellipse(0,0,1,0.5,0,Math.PI*2);
+
+		//parametric conditions for lathe curve
+		var cont_handle_top=cont_cond_cup-Math.pow(1.6,i+1.55);
+		var pts_handle=[];
+		for(i=5;i<9.5;i+=0.05){
+			pts_handle.push(new THREE.Vector3(0.5,Math.pow(i-4.5,2)*0.4-Math.pow(i-4.5,3)*0.1-cont_handle_top+1,i));
+		}
+		for(i=9.5;i>3;i-=0.05){
+			pts_handle.push(new THREE.Vector3(0.5,Math.pow(i-3,3)*0.01,i));
+		}
+		var spline=new THREE.SplineCurve3(pts_handle);
+		var path=new THREE.CurvePath();
+		path.add(spline);
+		var handle_settings={
+		steps: 100, amount: 5, bevelEnabled: false, extrudePath: path};
+		var handle=new THREE.ExtrudeGeometry(hand_shape ,handle_settings);
+		//materials for handle and cup
+			var mat_cube={color: 0xffffff,
+			polygonOffset: true,
+			polygonOffsetFactor: 2,
+			polygonOffsetUnits: 1,
+			side: THREE.DoubleSide,
+		};
+		//mesh the handle and cup
+		var mathan=new THREE.MeshBasicMaterial(mat_cube);
+		var cup = new THREE.Mesh(geo2, mathan);
+		var handle_mesh=new THREE.Mesh(handle,mathan);
+			
+		//pen asset
+		var rektangle=new THREE.Shape(); //set up the cross section to be extruded, a pen clip
+		rektangle.moveTo(0,0);	
+		rektangle.lineTo(0.125,0.25);
+		rektangle.lineTo(0.125,2.5);
+		rektangle.lineTo(0.0625,2.375);
+		rektangle.lineTo(0.0625,0.275);
+		rektangle.lineTo(0,0.275);
+		rektangle.lineTo(0,0);
+		//again parametric conditions, the first for the pen cap
+		var pts_pen_cap=[],pts_pen=[];
+		for(i=0;i<0.5;i+=0.05){
+			pts_pen_cap.push(new THREE.Vector2(i,0.5-Math.sqrt(0.25-Math.pow(i,2))));
+		}
+		pts_pen_cap.push(new THREE.Vector2(0.5,4.5));
+		//again for the actual pen
+		pts_pen.push(new THREE.Vector2(.45,0.5));
+		for(i=9;i<10.5;i+=0.05){ 
+			pts_pen.push(new THREE.Vector2(0.45-Math.pow(i-9,2)*Math.sqrt(.45)/4,i)); 
+		}
+		var clip_settings={ steps: 1,amount:0.125,bevelEnabled:false};	
+		var pen_geo=new THREE.LatheGeometry(pts_pen,24);			//pen geometry
+		var pen_cap_geo=new THREE.LatheGeometry(pts_pen_cap,24);		//cap geometry
+		var pen_point_geo=new THREE.ConeGeometry(0.07267,0.75,24);		//tip geometry
+		var pen_cap_ring_geo=new THREE.CylinderGeometry(0.5,0.5,0.25,24);	//ring on cap
+		var pen_clip_geo=new THREE.ExtrudeGeometry(rektangle,clip_settings);	//clip geometry
+		//materials for the pen
+		var goldplat=new THREE.MeshPhongMaterial({color: 0xBBAA11, shininess: 40});
+		var pen_mat=new THREE.MeshPhongMaterial({color: 0x3377BB, shininess: 40});
+		//meshes for pen
+		var pen_mesh=new THREE.Mesh(pen_geo,pen_mat);
+		var pen_cap_mesh=new THREE.Mesh(pen_cap_geo,pen_mat);
+		var pen_cap_ring=new THREE.Mesh(pen_cap_ring_geo,goldplat);
+		var pen_point=new THREE.Mesh(pen_point_geo,goldplat);
+		var pen_clip=new THREE.Mesh(pen_clip_geo,goldplat);
+		pen_point.position.y+=10.5;
+		pen_cap_ring.position.y+=4.625;
+		pen_clip.position.set(0.5,0.625,-.125);
+		
+		//stem of flower
+		function make_stem_curve(s){
+			THREE.Curve.call(this);
+			this.s=(s===undefined)?1:s;
+		}
+		make_stem_curve.prototype=Object.create(THREE.Curve.prototype);
+		make_stem_curve.prototype.constructor=make_stem_curve;
+		make_stem_curve.prototype.getPoint=function(t){
+			return new THREE.Vector3(t*4,12-Math.pow(t*4-4,2)/4*3,0).multiplyScalar(this.s);
+		};
+		var stem_geo=new THREE.TubeGeometry(new this.make_stem_curve(1),32,0.125,8,false);
+		var stem_mat=new THREE.MeshBasicMaterial({color: 0x00ff00,side: THREE.DoubleSide});
+		var stem_mesh=new THREE.Mesh(stem_geo,stem_mat);
+		//flower
+		var flowshape=new THREE.Shape();
+		flowshape.moveTo(0,0);
+		flowshape.quadraticCurveTo(-0.25,0.25,-.25,.25);
+		flowshape.quadraticCurveTo(-.5,.5,-.625,3);
+		flowshape.quadraticCurveTo(0,7.5,.625,3);
+		flowshape.quadraticCurveTo(.5,.5,.25,.25);
+		flowshape.quadraticCurveTo(0.25,0.25,0,0);
+		var flow_geo=new THREE.ShapeGeometry(flowshape);
+		var petal_mat=new THREE.MeshBasicMaterial({color: 0xE6E6FA,side:THREE.DoubleSide});
+		var petal_meshes=new THREE.Group();
+		function make_flower(n){
+			for(i=0;i<n;i++){
+				var flow_mesh=new THREE.Mesh(flow_geo,petal_mat);
+				flow_mesh.rotation.z=i*Math.PI/n*2;
+				petal_meshes.add(flow_mesh);
+			}
+		}
+		make_flower(5);
+		petal_meshes.scale.multiplyScalar(0.5);
+		petal_meshes.position.y=12;
+		petal_meshes.position.x=7;
+		petal_meshes.rotation.set(0,Math.PI/2,0);
+		stem_mesh.position.x=3;
+		scene.add(petal_meshes);
+		scene.add(stem_mesh);
+		//napkin plane/box thing?
+		var napkin_geo=new THREE.BoxGeometry(15,0.1,15);
+		//var napkin_mat=new THREE.ImageUtils.LoadTexture('pics/napkin.jpg'); for future texture
+		var napkin_mat=new THREE.MeshBasicMaterial({color: 0xffffff,side: THREE.DoubleSide});
+		var napkin_mesh=new THREE.Mesh(napkin_geo,napkin_mat);
+		scene.add(napkin_mesh);
+		napkin_mesh.position.set(-5,-1.1,0);
+		napkin_mesh.rotation.y=Math.PI/4;
+		//edges for handle and cup
+		var edgegeo=new THREE.EdgesGeometry(geo2);
+		var edge_handle = new THREE.EdgesGeometry(handle);
+		var mate={color: 0x000000, linewidth:2};
+		var materiale=new THREE.LineBasicMaterial( mate );
+		var cup_edge=new THREE.LineSegments(edgegeo,materiale);
+		var handle_wire=new THREE.LineSegments(edge_handle,materiale);
+
+		//"coffee" plane
+		var fluid = new THREE.PlaneGeometry(15,15,1,1);
+		//invisible interior of the cup for clipping mask 
+		var clip_geo=new THREE.LatheGeometry(clip_pts,48);			
+		//creating planes from the faces of the clipping mask
+		var planes_clip=new Array(clip_geo.faces.length);
+		for(i=0;i<clip_geo.faces.length;i++){
+			var p=new THREE.Plane().setFromCoplanarPoints(
+				clip_geo.vertices[clip_geo.faces[i].a],
+				clip_geo.vertices[clip_geo.faces[i].b],
+				clip_geo.vertices[clip_geo.faces[i].c]);
+			p.negate();
+			planes_clip[i]=p;
+		}
+		//coffee material
+		var coffee={color: 0xff0000,clippingPlanes: planes_clip};
+		var fluidmat=new THREE.MeshPhongMaterial(coffee);
+		var coffee_mesh=new THREE.Mesh(fluid,fluidmat);
+
+		//outlines for cup (looks like shit)
+		var outline={color: 0x000000, side: THREE.FrontSide};
+		var outline2={color: 0x000000, side: THREE.BackSide};
+		var outl_mat=new THREE.MeshBasicMaterial(outline);
+		var outl_mat2=new THREE.MeshBasicMaterial(outline2);
+		var cup_outline=new THREE.Mesh(geo2,outl_mat);
+		cup_outline.scale.multiplyScalar(1.03);
+		var cup_edge_outline=new THREE.Mesh(handle,outl_mat2);
+		cup_edge_outline.scale.multiplyScalar(1.03);
+			
+		//groups - some objects have way too many meshes
+		var cupg=new THREE.Group();
+		cupg.add(cup);
+		cupg.add(handle_mesh);
+		//do for pen as well
+		var pen_g=new THREE.Group();
+		pen_g.add(pen_cap_mesh);
+		pen_g.add(pen_mesh);
+		pen_g.add(pen_point)
+		pen_g.add(pen_cap_ring);
+		pen_g.add(pen_clip);
+		pen_g.rotation.set(Math.PI/2,0,Math.PI/4);
+		pen_g.position.set(-5,0,-5);
+		pen_g.scale.multiplyScalar(2);	
+		
+		//ADD SHIT TO SCENE
+		//scene.add(cup_edge_outline); looks like shit
+		//scene.add(cup_outline);
+		table.receiveShadow=true;
+		scene.add(pen_g);
+		scene.add(coffee_mesh);
+		scene.add(light);
+		scene.add(skybox);
+		scene.add(cupg);
+		scene.add(cup_edge);
+		scene.add(handle_wire);
+		scene.add(table_mesh);
+		
+		//setup camera
+		var cam_piv=new THREE.Object3D();
+		var axis=new THREE.Vector3(0,1,0);
+		scene.add(cam_piv);
+		cam_piv.add(camera);
+		camera.position.x = 5;	
+		camera.position.y = 20;
+		table_mesh.position.set(0,-1.1,0);
+		table_mesh.rotation.x=Math.PI/2;
+		coffee_mesh.position.set(0,4,0);
+		coffee_mesh.rotation.x=-Math.PI/2;
+		var rad=0;
+		var animate = function () {
+			
+			requestAnimationFrame( animate );
+			rad+=0.01;
+			coffee_mesh.rotation.z+=0.01;
+			//edge.rotation.y +=0.01;	
+			//cup_edge.rotation.y += 0.01;
+			camera.lookAt(cam_piv.position);
+			cam_piv.rotateOnAxis(axis,0.01);
+			
+			renderer.render(scene, camera);
+		};
+
+			animate();
+	} else {
+    		var warning = Detector.getWebGLErrorMessage();
+    		document.getElementById('container').appendChild(warning);
+	}
+
+	</script>
+	</body>
+
+</html>
