@@ -10,24 +10,32 @@
 	<script src="js/three.js"></script>
 	<script src="js/Detector.js"></script>
 	<script>
-	if (Detector.webgl) {
+		if (Detector.webgl) {
 		var scene = new THREE.Scene();
 
-		var camera = new THREE.PerspectiveCamera( 75, window.innerWidth/window.innerHeight, 0.1, 1000 );
+		var camera = new THREE.PerspectiveCamera( 75, window.innerWidth/window.innerHeight, 0.1, 1500 );
 		var renderer = new THREE.WebGLRenderer();
 		renderer.setSize( window.innerWidth, window.innerHeight );
 		renderer.localClippingEnabled=true;
+		renderer.shadowMapEnabled=true;
+		renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 		document.body.appendChild( renderer.domElement );
-		
+		var loader = new THREE.JSONLoader();
+		window.addEventListener('resize',function(){
+			camera.aspect=window.innerWidth/window.innerHeight;
+			camera.updateProjectionMatrix();
+			renderer.setSize(window.innerWidth,window.innerHeight);}
+			,false);
 		//LIGHT SOURCE
-		var light=new THREE.PointLight(0x96A969);
-		light.position.set(0,100,10);
+		var light=new THREE.SpotLight(0xfff8d6);
+		light.position.set(-40,120,20);
 		light.castShadow=true;
-		light.shadow.camera.near=4;
-		light.shadow.camera.far=15;
+		light.angle=Math.PI;
+		light.shadow.camera.near=1;
+		light.shadow.camera.far=500;
 		light.shadow.mapSize.width=1024;
 		light.shadow.mapSize.height=1024;
-		
+		light.shadowDarkness = 1;
 		// GEOMETRY SETUP
 		//set up skybox
 		var sky=new THREE.BoxGeometry(1000,1000,1000);
@@ -41,6 +49,7 @@
 		var tabletexture=new THREE.ImageUtils.loadTexture('pics/Walnut.jpg'); //import texture from jpg
 		var tablematerial=new THREE.MeshPhongMaterial({ map:tabletexture,side: THREE.DoubleSide,shininess: 50});
 		var table_mesh=new THREE.Mesh(table,tablematerial);
+		table_mesh.receiveShadows=true
 
 		//for the cup
 		var pts=[],clip_pts=[];
@@ -173,6 +182,7 @@
 		//var napkin_mat=new THREE.ImageUtils.LoadTexture('pics/napkin.jpg'); for future texture
 		var napkin_mat=new THREE.MeshBasicMaterial({color: 0xffffff,side: THREE.DoubleSide});
 		var napkin_mesh=new THREE.Mesh(napkin_geo,napkin_mat);
+		napkin_mesh.shadowReceive=true;
 		scene.add(napkin_mesh);
 		napkin_mesh.position.set(-5,-1.1,0);
 		napkin_mesh.rotation.y=Math.PI/4;
@@ -199,10 +209,56 @@
 			planes_clip[i]=p;
 		}
 		//coffee material
-		var coffee={color: 0xff0000,clippingPlanes: planes_clip};
+		var coffee={color: 0x6f4e37,clippingPlanes: planes_clip};
 		var fluidmat=new THREE.MeshPhongMaterial(coffee);
 		var coffee_mesh=new THREE.Mesh(fluid,fluidmat);
+		
+	 	//blender assets - spoon
+	 	var spoon=null
+		var spoon_mat=new THREE.MeshPhongMaterial({color: 0xffffff, shininess: 100});
+		loader.load('blender_assets/spoon_final.json', function(geometry){
+			spoon=new THREE.Mesh(geometry,spoon_mat);
+			spoon.rotation.y=Math.PI/3
+			spoon.position.set(-13,0,20)
+			scene.add(spoon)
+		});
+		//disposable coffee cup
+		var dccup=null
+		var dccup_wrap=new THREE.MeshLambertMaterial({color:0xf4a460});
+		var dccup_mat=[	new THREE.MeshLambertMaterial({color: 0xffffff}),
+			dccup_wrap,dccup_wrap];
+		loader.load('blender_assets/coffeecup_disposable.json', function(geometry){
+			dccup=new THREE.Mesh(geometry,dccup_mat);
+			dccup.rotation.y=Math.PI/3
+			dccup.position.set(8,-1,10)
+			dccup.scale.multiplyScalar(4)
+			scene.add(dccup)
+		});
+		var dccup_lid=null;
+		var dccup_lid=new THREE.MeshPhongMaterial({color:0x303338,shininess: 80});
+		loader.load('blender_assets/coffeecup_disposable_lid.json', function(geometry){
+			dccup_lid_mesh=new THREE.Mesh(geometry,dccup_lid);
+			dccup_lid_mesh.rotation.y=Math.PI/3
+			dccup_lid_mesh.position.set(8,-1,10)
+			dccup_lid_mesh.scale.multiplyScalar(4)
+			scene.add(dccup_lid_mesh)
+		});
 
+		//sugar cubes
+		var sug_cube_list=[]
+		for(i=0;i<4;i++){
+			var sug_geo=new THREE.BoxGeometry(0.75,0.75,0.75);
+			var sug_cub=new THREE.Mesh(sug_geo,new THREE.MeshBasicMaterial({color:0xffffff}));
+			materiale.linewidth=1;
+			var sug_edge=new THREE.LineSegments(new THREE.EdgesGeometry(sug_geo),materiale);
+			var sug_full=new THREE.Group().add(sug_cub);
+			sug_full.add(sug_edge);
+			sug_full.rotation.set(Math.random()*Math.PI,Math.random()*Math.PI,Math.random()*Math.PI);
+			sug_full.position.set((i+1)*2/3*Math.sin(Math.random()*Math.PI*2),3.5,(i+1)*2/3*Math.cos(Math.random()*Math.PI*2));
+			scene.add(sug_full)
+			sug_cube_list.push(sug_full)
+		}
+		
 		//outlines for cup (looks like shit)
 		var outline={color: 0x000000, side: THREE.FrontSide};
 		var outline2={color: 0x000000, side: THREE.BackSide};
@@ -212,11 +268,15 @@
 		cup_outline.scale.multiplyScalar(1.03);
 		var cup_edge_outline=new THREE.Mesh(handle,outl_mat2);
 		cup_edge_outline.scale.multiplyScalar(1.03);
-			
+		cup.castShadow=true;
+	 	handle_mesh.castShadow=true;
+	
 		//groups - some objects have way too many meshes
 		var cupg=new THREE.Group();
 		cupg.add(cup);
 		cupg.add(handle_mesh);
+		//cup.castShadow=true;
+	 	//handle_mesh.castShadow=true;
 		//do for pen as well
 		var pen_g=new THREE.Group();
 		pen_g.add(pen_cap_mesh);
@@ -227,11 +287,10 @@
 		pen_g.rotation.set(Math.PI/2,0,Math.PI/4);
 		pen_g.position.set(-5,0,-5);
 		pen_g.scale.multiplyScalar(2);	
-		
+		light.shadowCameraVisible=true;
 		//ADD SHIT TO SCENE
 		//scene.add(cup_edge_outline); looks like shit
 		//scene.add(cup_outline);
-		table.receiveShadow=true;
 		scene.add(pen_g);
 		scene.add(coffee_mesh);
 		scene.add(light);
@@ -246,8 +305,8 @@
 		var axis=new THREE.Vector3(0,1,0);
 		scene.add(cam_piv);
 		cam_piv.add(camera);
-		camera.position.x = 5;	
-		camera.position.y = 20;
+		camera.position.x = 15;	
+		camera.position.y = 40;
 		table_mesh.position.set(0,-1.1,0);
 		table_mesh.rotation.x=Math.PI/2;
 		coffee_mesh.position.set(0,4,0);
@@ -256,8 +315,12 @@
 		var animate = function () {
 			
 			requestAnimationFrame( animate );
-			rad+=0.01;
-			coffee_mesh.rotation.z+=0.01;
+			var radc=0.04;
+			rad+=radc;
+			//coffee_mesh.rotation.z+=0.01;
+			for(var i=0;i<4;i++){
+				sug_cube_list[i].position.y+=Math.sin(rad)*radc*0.5
+			}
 			//edge.rotation.y +=0.01;	
 			//cup_edge.rotation.y += 0.01;
 			camera.lookAt(cam_piv.position);
